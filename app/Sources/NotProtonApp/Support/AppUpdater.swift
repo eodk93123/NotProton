@@ -1,26 +1,7 @@
-import Sparkle
-
 @MainActor
 final class AppUpdater {
-
-    private let controller: SPUStandardUpdaterController
-
-    init() {
-        #if DEBUG
-        let scheduling = false
-        #else
-        let scheduling = true
-        #endif
-        controller = SPUStandardUpdaterController(
-            startingUpdater: scheduling,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
-    }
-
+    // An upstream update would replace this fork's experimental changes.
     func check() {
-        #if !DEBUG
-        controller.checkForUpdates(nil)
-        #endif
+        AppLog.note("updates: disabled in the trial-testing fork; rebuild from its source")
     }
 }
