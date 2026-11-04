@@ -108,6 +108,12 @@ jobs:
       - name: Check the translations
         run: make -s l10ncheck
 
+      - name: Check CrossOver trial launch validation
+        run: make -s trialcheck
+
+      - name: Run the Swift tests
+        run: make -s app-tests
+
       - name: Run the hermetic C suites
         run: |
           make -s sigcheck
@@ -139,12 +145,6 @@ jobs:
           make -s gamedrivecheck
           make -s launchercheck
           make -s seedcheck
-
-      - name: Check CrossOver trial launch validation
-        run: make -s trialcheck
-
-      - name: Run the Swift tests
-        run: make -s app-tests
 
       - name: Package the app bundle
         run: |
