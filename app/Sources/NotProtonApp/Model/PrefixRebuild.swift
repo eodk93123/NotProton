@@ -69,6 +69,8 @@ extension PrefixTools {
             )
         }
 
+        try CrossOverTrial.requireIfTrialRunner(runner)
+
         let fm = FileManager.default
         let fresh = prefix.root.appending(path: "pfx.rebuild")
         if fm.fileExists(atPath: fresh.path(percentEncoded: false)) {

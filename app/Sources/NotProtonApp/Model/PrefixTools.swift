@@ -189,6 +189,7 @@ enum PrefixTools {
                 detail: String(localized: "\(prefix.title) has no prefix at \(prefix.pfx.path(percentEncoded: false)).")
             )
         }
+        try CrossOverTrial.requireIfTrialRunner(runner)
         return loader
     }
 

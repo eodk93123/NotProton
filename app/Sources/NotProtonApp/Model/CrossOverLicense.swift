@@ -12,6 +12,17 @@ enum CrossOverLicense {
         let detail: String
         // The real reason, for the log.
         let diagnostic: String
+        let trial: CrossOverTrial.Source?
+
+        init(
+            licensed: Bool, detail: String, diagnostic: String,
+            trial: CrossOverTrial.Source? = nil
+        ) {
+            self.licensed = licensed
+            self.detail = detail
+            self.diagnostic = diagnostic
+            self.trial = trial
+        }
     }
 
     static let defaultSearchDirs: [URL] = {
@@ -25,8 +36,8 @@ enum CrossOverLicense {
     private static let licenseBase = "com.codeweavers.CrossOver"
 
     static let notActivatedTitle = String(localized: "CrossOver does not appear to be activated.")
-    static let trialUnsupported = String(localized: "The trial version is not supported.")
-    static let notActivatedAdvice = "\(String(localized: "Please run CrossOver and try again.")) \(trialUnsupported)"
+    static let trialAdvice = String(localized: "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver.")
+    static let notActivatedAdvice = "\(String(localized: "Please run CrossOver and try again.")) \(trialAdvice)"
     static var notActivated: String { "\(notActivatedTitle) \(notActivatedAdvice)" }
 
     static let defaultOpenssl = "/usr/bin/openssl"
@@ -34,11 +45,30 @@ enum CrossOverLicense {
     static func check(
         crossOverRoot: URL,
         searchDirs: [URL] = defaultSearchDirs,
-        openssl: String = defaultOpenssl
+        openssl: String = defaultOpenssl,
+        trial: (URL) throws -> CrossOverTrial.Active? = { try CrossOverTrial.check(crossOverRoot: $0) }
     ) -> Status {
-        let status = evaluate(
+        var status = evaluate(
             crossOverRoot: crossOverRoot, searchDirs: searchDirs, openssl: openssl
         )
+        if !status.licensed {
+            do {
+                if let active = try trial(crossOverRoot), active.daysRemaining > 0 {
+                    status = Status(
+                        licensed: true,
+                        detail: String(localized: "CrossOver trial days remaining: \(active.daysRemaining)."),
+                        diagnostic: "active CrossOver trial (\(active.daysRemaining) days remaining)",
+                        trial: active.source
+                    )
+                }
+            } catch {
+                status = Status(
+                    licensed: false,
+                    detail: CrossOverTrial.unavailableAdvice,
+                    diagnostic: "\(status.diagnostic); trial verification failed: \(error.localizedDescription)"
+                )
+            }
+        }
         AppLog.note("license: \(status.diagnostic)")
         return status
     }
@@ -124,7 +154,8 @@ enum CrossOverLicense {
         )
     }
 
-    static func requireValid(for install: CrossOverInstall) throws {
+    @discardableResult
+    static func requireValid(for install: CrossOverInstall) throws -> Status {
         let status = check(crossOverRoot: install.crossOverRoot)
         guard status.licensed else {
             throw StepFailure(
@@ -132,6 +163,7 @@ enum CrossOverLicense {
                 detail: status.detail
             )
         }
+        return status
     }
 
     private static func sidecars(in dir: URL) -> [(path: String, digest: String)] {

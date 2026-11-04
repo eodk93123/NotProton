@@ -10,6 +10,7 @@ enum RunnerInstaller {
     static func clone(
         from install: CrossOverInstall,
         replacingExisting: Bool = false,
+        trialSource: CrossOverTrial.Source? = nil,
         runners: URL = SupportPaths.runners
     ) throws -> RunnerBuild {
         guard case .supported(let build) = install.support else {
@@ -32,6 +33,7 @@ enum RunnerInstaller {
             defer { try? fm.removeItem(at: staging) }
             try copyPayload(from: install.crossOverRoot, to: staging)
             try verifyClone(build: build, root: staging.appending(path: "CrossOver"))
+            try CrossOverTrial.record(trialSource, in: staging.appending(path: "CrossOver"))
             guard occupied else {
                 try fm.moveItem(at: staging, to: target)
                 return build
@@ -54,6 +56,7 @@ enum RunnerInstaller {
 
         let cloned = SupportPaths.clonedRoot(forBuild: build.id, runners: runners)
         try verifyClone(build: build, root: cloned)
+        try CrossOverTrial.record(trialSource, in: cloned)
 
         return build
     }

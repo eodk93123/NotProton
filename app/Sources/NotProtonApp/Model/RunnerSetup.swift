@@ -34,10 +34,11 @@ enum RunnerSetup {
         replacingExisting: Bool = false,
         report: @Sendable (Phase) -> Void = { _ in }
     ) throws -> Outcome {
-        try CrossOverLicense.requireValid(for: install)
+        let status = try CrossOverLicense.requireValid(for: install)
 
         report(.cloning)
-        let build = try RunnerInstaller.clone(from: install, replacingExisting: replacingExisting)
+        let build = try RunnerInstaller.clone(
+            from: install, replacingExisting: replacingExisting, trialSource: status.trial)
         return try prepare(build, report: report)
     }
 
@@ -73,6 +74,7 @@ enum RunnerSetup {
         }
 
         try verify(build, root)
+        try CrossOverTrial.record(status.trial, in: root)
 
         report(.staging)
         let staged = try stage(build, root, bridge)
@@ -84,7 +86,12 @@ enum RunnerSetup {
         )
         for tool in CompatToolList.installed(runners: runners, file: toolList) {
             let run = compatTools.appending(path: "\(tool.name)/run")
-            if FileManager.default.fileExists(atPath: run.path(percentEncoded: false)) { continue }
+            // An existing script may predate trial support. Every tool for this
+            // trial runner needs the launch gate before setup can succeed.
+            let needsTrialGate = status.trial != nil && tool.build == build.id
+            if !needsTrialGate && FileManager.default.fileExists(atPath: run.path(percentEncoded: false)) {
+                continue
+            }
             try SteamInstaller.installIfChanged(DeploymentContent.File(
                 source: try runScript(), destination: run, name: "\(tool.name)/run", executable: true))
         }
