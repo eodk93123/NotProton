@@ -54,6 +54,8 @@ To start a separate personal fork from upstream, use `gh repo fork NotProtonNot/
 
 The existing [app workflow](../.github/workflows/app.yml) builds all components, stages the payload, packages the application, runs the C and Swift test suites, and uploads a `NotProton` artifact containing `NotProton.zip`. It does not need a CrossOver installation or a signing secret on the runner.
 
+A build is available from [Actions run 41911796868](https://github.com/eodk93123/NotProton/actions/runs/41911796868) for source commit `27684f35e036c36d2822b97a6876bbf411e31387`. Open the run and download **Artifacts → NotProton**. The artifact contains `NotProton.zip`; extract that inner archive to obtain `NotProton.app`.
+
 In your fork's **Actions** tab, enable workflows if GitHub asks. Then choose **app → Run workflow → trial-testing**. The command-line equivalent is:
 
 ```sh
@@ -81,7 +83,7 @@ ditto -x -k out/ci-artifact/NotProton.zip out/ci-app
 codesign --verify --strict out/ci-app/NotProton.app
 ```
 
-The app uses ad hoc signing, not a Developer ID notarization. Code-signature verification checks bundle integrity; it does not establish that trial handling or a game launch works. If macOS blocks the app, use its normal per-app **Open Anyway** approval after reviewing the build source.
+The app uses ad hoc signing, not a Developer ID notarization. Code-signature verification checks bundle integrity; it does not establish that trial handling or a game launch works. If macOS blocks the app because it is not notarized, follow [Apple's per-app **Open Anyway** instructions](https://support.apple.com/en-gb/102445) after reviewing the build source.
 
 ## Build locally on a Mac
 
@@ -174,7 +176,7 @@ This changes only NotProton's preference. It does not change CrossOver's trial o
 
 ## Validation still required
 
-This branch was prepared in a Linux workspace without Xcode or a macOS runtime. No macOS application build, Swift test run, or real CrossOver trial/game launch has been completed there.
+Source commit `27684f35e036c36d2822b97a6876bbf411e31387` passed the complete hosted `app` workflow in [run 41911796868](https://github.com/eodk93123/NotProton/actions/runs/41911796868), using Xcode 27.0. This verifies the macOS app build, minimum-version and localization checks, trial shell tests, Swift tests, and hermetic C suites. The actual CrossOver vendor query, setup against an installed trial, and a game launch remain untested.
 
 Before treating a candidate as ready, record:
 
