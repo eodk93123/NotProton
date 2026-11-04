@@ -58,9 +58,9 @@ struct LocalizationTests {
     func pendingTranslationFallsBack() throws {
         let zh = try #require(chinese)
         let it = try #require(italian)
-        #expect(String(localized: "The trial version is not supported.", bundle: zh)
-            == "The trial version is not supported.")
-        #expect(String(localized: "The trial version is not supported.", bundle: it)
-            == "La versione di prova non è supportata.")
+        #expect(String(localized: "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver.", bundle: zh)
+            == "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver.")
+        #expect(String(localized: "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver.", bundle: it)
+            == "Per testare la versione di prova servono una bottiglia CrossOver esistente e uno stato di prova attivo confermato da CrossOver.")
     }
 }

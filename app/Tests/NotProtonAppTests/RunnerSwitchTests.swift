@@ -144,6 +144,35 @@ struct RunnerPrepareTests {
         #expect(try Data(contentsOf: run) == old)
     }
 
+    @Test("Trial setup replaces older launch scripts and paid setup clears its marker")
+    func trialSetupRefreshesExistingLaunchScripts() throws {
+        let runners = try makeRunners(cloning: [Self.release, Self.fex])
+        defer { try? FileManager.default.removeItem(at: runners) }
+        let tools = SupportedRunners.tools(for: [Self.release, Self.fex])
+        let old = Data("#!/bin/sh\nexec old-runner\n".utf8)
+        for tool in tools {
+            let run = runners.appending(path: "compatibilitytools.d/\(tool.name)/run")
+            try atomicReplace(run, with: old, step: "test")
+        }
+        let source = CrossOverTrial.Source(
+            root: URL(filePath: "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver"),
+            bottle: "Steam"
+        )
+        let trial = CrossOverLicense.Status(
+            licensed: true, detail: "Active trial", diagnostic: "test", trial: source)
+        _ = try prepare(Self.release, runners: runners, calls: Calls(), license: trial)
+
+        let root = SupportPaths.clonedRoot(forBuild: Self.release.id, runners: runners)
+        #expect(try CrossOverTrial.readMarker(in: root) == source)
+        for tool in CompatToolList.installed(runners: runners, file: runners.appending(path: "tools")) {
+            let run = runners.appending(path: "compatibilitytools.d/\(tool.name)/run")
+            #expect(try Data(contentsOf: run) == (tool.build == Self.release.id ? Self.runScript : old))
+        }
+
+        _ = try prepare(Self.release, runners: runners, calls: Calls())
+        #expect(try CrossOverTrial.readMarker(in: root) == nil)
+    }
+
     @Test("Preparing one build leaves another build's staged copies alone")
     func keepsOtherBuildsStaged() throws {
         let runners = try makeRunners(cloning: [Self.rosetta, Self.fex])

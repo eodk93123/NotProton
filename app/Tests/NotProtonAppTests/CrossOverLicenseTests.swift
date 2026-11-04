@@ -101,8 +101,53 @@ struct CrossOverLicenseTests {
         let license = try Self.writeLicense(in: fix.local)
         try Self.sign(license, with: fix.key, digest: "-sha256", sidecar: "sha256")
 
-        let status = CrossOverLicense.check(crossOverRoot: fix.root, searchDirs: fix.searchDirs)
+        let status = CrossOverLicense.check(
+            crossOverRoot: fix.root, searchDirs: fix.searchDirs,
+            trial: { _ in
+                Issue.record("A verified paid license must not run the trial query.")
+                return nil
+            })
         #expect(status.licensed)
+        #expect(status.trial == nil)
+    }
+
+    @Test("A verified active trial is accepted and carries its source into setup")
+    func verifiedTrialIsAccepted() throws {
+        let fix = try Self.fixture()
+        defer { fix.remove() }
+        let source = CrossOverTrial.Source(root: fix.root, bottle: "Steam")
+        let status = CrossOverLicense.check(
+            crossOverRoot: fix.root, searchDirs: fix.searchDirs,
+            trial: { root in
+                #expect(root == fix.root)
+                return CrossOverTrial.Active(source: source, daysRemaining: 2)
+            })
+        #expect(status.licensed)
+        #expect(status.trial == source)
+        #expect(status.diagnostic.contains("active CrossOver trial"))
+    }
+
+    @Test("An expired or unverifiable trial cannot satisfy the license gate")
+    func unverifiedTrialIsRefused() throws {
+        let fix = try Self.fixture()
+        defer { fix.remove() }
+        let expired = CrossOverLicense.check(
+            crossOverRoot: fix.root, searchDirs: fix.searchDirs,
+            trial: { _ in
+                CrossOverTrial.Active(
+                    source: .init(root: fix.root, bottle: "Steam"), daysRemaining: 0)
+            })
+        #expect(!expired.licensed)
+        #expect(expired.trial == nil)
+        let failed = CrossOverLicense.check(
+            crossOverRoot: fix.root, searchDirs: fix.searchDirs,
+            trial: { _ in
+                throw StepFailure(step: CrossOverTrial.step, detail: "simulated trial failure")
+            })
+        #expect(!failed.licensed)
+        #expect(failed.trial == nil)
+        #expect(failed.detail == CrossOverTrial.unavailableAdvice)
+        #expect(failed.diagnostic.contains("simulated trial failure"))
     }
 
     @Test("A bundle carrying no verification key is named in the diagnostic")

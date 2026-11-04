@@ -277,6 +277,43 @@ struct RunnerInstallerTests {
             runners.appending(path: ".crossover-\(build.id).new").path(percentEncoded: false)))
     }
 
+    @Test("Trial setup records the source on both a new and a reused clone")
+    func trialCloneRecordsSource() throws {
+        let runners = try makeRunners()
+        defer { try? FileManager.default.removeItem(at: runners) }
+        let (install, build) = try makeSupportedInstall(in: runners)
+        let source = CrossOverTrial.Source(root: install.crossOverRoot, bottle: "Steam")
+        _ = try RunnerInstaller.clone(from: install, trialSource: source, runners: runners)
+        let root = SupportPaths.clonedRoot(forBuild: build.id, runners: runners)
+        #expect(try CrossOverTrial.readMarker(in: root) == source)
+
+        let changed = CrossOverTrial.Source(root: install.crossOverRoot, bottle: "Test games")
+        _ = try RunnerInstaller.clone(from: install, trialSource: changed, runners: runners)
+        #expect(try CrossOverTrial.readMarker(in: root) == changed)
+
+        // Setup with a signed license must not retain the earlier trial dependency.
+        _ = try RunnerInstaller.clone(from: install, runners: runners)
+        #expect(try CrossOverTrial.readMarker(in: root) == nil)
+    }
+
+    @Test("An invalid trial source cannot replace an already installed clone")
+    func invalidTrialSourceKeepsInstalledClone() throws {
+        let runners = try makeRunners()
+        defer { try? FileManager.default.removeItem(at: runners) }
+        let (install, build) = try makeSupportedInstall(in: runners)
+        let source = CrossOverTrial.Source(root: install.crossOverRoot, bottle: "Steam")
+        _ = try RunnerInstaller.clone(from: install, trialSource: source, runners: runners)
+        let root = SupportPaths.clonedRoot(forBuild: build.id, runners: runners)
+        let invalid = CrossOverTrial.Source(root: install.crossOverRoot, bottle: "Steam\nextra")
+
+        #expect(throws: StepFailure.self) {
+            try RunnerInstaller.clone(
+                from: install, replacingExisting: true, trialSource: invalid, runners: runners)
+        }
+        #expect(try CrossOverTrial.readMarker(in: root) == source)
+        try RunnerInstaller.verifyClone(build: build, root: root)
+    }
+
     @Test("The state reader agrees with what was just written")
     func stateAgreesWithInstaller() throws {
         let runners = try makeRunners()
