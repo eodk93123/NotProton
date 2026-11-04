@@ -246,7 +246,7 @@ struct StatusView: View {
         } message: {
             Text(
                 CrossOverLicense.notActivatedAdvice
-                    + String(localized: " NotProton can be deployed, but the CrossOver compatibility tool cannot be installed without a valid license.")
+                    + String(localized: " NotProton can be deployed, but the CrossOver compatibility tool cannot be installed without a valid license or a verified active trial.")
             )
         }
         .task { if status.snapshot == nil { await status.refresh() } }
@@ -541,7 +541,10 @@ struct StatusView: View {
                 title: row.title,
                 value: crossOverValue(row),
                 tone: crossOverTone(row),
-                detail: crossOverDetail(row, tools: tools),
+                detail: crossOverDetail(
+                    row, tools: tools,
+                    license: row.install.flatMap { snapshot.crossOverLicense[$0.id] }
+                ),
                 trailing: row.copy == .ready ? buildSize(row.buildID) : nil,
                 action: crossOverAction(row, prominent: snapshot.runner == .none),
                 menu: crossOverMenu(row)
@@ -577,7 +580,7 @@ struct StatusView: View {
         let build = String(localized: "Build \(SupportedRunners.displayVersion(forID: row.buildID))")
         switch row.copy {
         case .ready: return build
-        case .none: return build + (row.licensed == false ? String(localized: ", not set up or activated") : String(localized: ", not set up"))
+        case .none: return build + (row.licensed == false ? String(localized: ", not set up or verified") : String(localized: ", not set up"))
         case .unpatched: return build + String(localized: ", not patched")
         case .damaged: return build + String(localized: ", copy damaged")
         case .unsupported: return build + String(localized: ", not supported")
@@ -588,18 +591,22 @@ struct StatusView: View {
         if row.unsupportedVersion != nil { return .neutral }
         switch row.copy {
         case .none: return row.licensed == false ? .warning : .neutral
-        case .ready: return .ok
+        case .ready: return row.licensed == false ? .warning : .ok
         case .unpatched, .damaged, .unsupported: return .warning
         }
     }
 
-    private func crossOverDetail(_ row: CrossOverRow, tools: [InstalledTool]) -> String? {
+    private func crossOverDetail(
+        _ row: CrossOverRow, tools: [InstalledTool], license: CrossOverLicense.Status?
+    ) -> String? {
         var lines: [String] = []
         if row.copy == .ready || row.copy == .unpatched {
             let names = tools.filter { $0.build == row.buildID }.map(\.display)
             lines.append(contentsOf: names)
         }
-        if row.copy == .none, row.licensed == false { lines.append("\(String(localized: "Open CrossOver to activate it.")) \(CrossOverLicense.trialUnsupported)") }
+        if let license, license.trial != nil || !license.licensed {
+            lines.append(license.detail)
+        }
         if let install = row.install {
             var path = install.bundle.path(percentEncoded: false)
             if path.count > 1, path.hasSuffix("/") { path.removeLast() }
