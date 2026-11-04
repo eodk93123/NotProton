@@ -12,6 +12,12 @@ case "$block" in
   *np_conf_normalise*np_variant_overlay*np_variant_resolve*) ;;
   *) echo "FAIL: the variant block was not found in $SRC"; exit 1 ;;
 esac
+# The extracted initialization still runs the production trial gate.
+trial_helpers=$(sed -n '/^np_check_trial() ($/,/^)$/p; /^np_check_trial_runner() ($/,/^)$/p' "$SRC")
+case "$trial_helpers" in
+  *"np_check_trial() ("*"np_check_trial_runner() ("*) ;;
+  *) echo "FAIL: trial helpers not found in $SRC"; exit 1 ;;
+esac
 switch_fn=$(sed -n '/^note_variant_switch() {/,/^}/p' "$SRC")
 [ -n "$switch_fn" ] || { echo "FAIL: note_variant_switch was not found in $SRC"; exit 1; }
 
@@ -20,7 +26,7 @@ trap 'rm -rf "$work"' EXIT
 base="$work/runners/crossover-26.3/CrossOver"
 mkdir -p "$base/lib/wine/x86_64-windows" "$base/lib/wine/x86_64-unix" "$base/bin" \
          "$base/lib/dxmt/x86_64-windows" "$base/lib/dxmt/x86_64-unix" "$work/variants"
-printf '%s\n' "$block" > "$work/block.sh"
+printf '%s\n%s\n' "$trial_helpers" "$block" > "$work/block.sh"
 
 # A PE winebuild has marked as a builtin carries the marker over the DOS stub at 0x40.
 dll() {
@@ -69,6 +75,15 @@ ok "no variant uses the build's own runner" "$(resolve '')" "$base"
 ok "a variant that is not installed falls back" "$(resolve 'notinstalled')" "$base"
 ok "a name with a slash is refused" "$(resolve '../../etc')" "$base"
 ok "a name with a space is refused" "$(resolve 'bad name')" "$base"
+
+echo "== a malformed trial marker stops runner selection"
+printf 'malformed\n' > "$base/notproton-trial"
+trial_status=0
+resolve '' > "$work/trial-out" 2> "$work/trial-err" || trial_status=$?
+ok "the trial guard refuses the malformed marker" "$trial_status" "1"
+ok "a refused trial returns no runner" "$(cat "$work/trial-out")" ""
+logged "the refusal is logged" "CrossOver trial validation failed; launch stopped."
+rm "$base/notproton-trial"
 
 echo "== a descriptor builds the runner"
 mkdir -p "$work/trees/one/x86_64-windows" "$work/trees/one/x86_64-unix"

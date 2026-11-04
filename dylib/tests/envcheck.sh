@@ -67,6 +67,13 @@ trap 'rm -rf "$work"' EXIT
 np_support="$work/Application Support/notproton"
 np_build="test"
 library="$np_support/runners/crossover-$np_build/CrossOver/lib64/apple_gptk/external/libd3dshared.dylib"
+# Initialization uses the real trial gate; this fixture's runner has no trial marker.
+trial_helpers=$(sed -n '/^np_check_trial() ($/,/^)$/p; /^np_check_trial_runner() ($/,/^)$/p' "$SRC")
+case "$trial_helpers" in
+  *"np_check_trial() ("*"np_check_trial_runner() ("*) ;;
+  *) echo "FAIL: trial helpers not found in $SRC"; exit 1 ;;
+esac
+eval "$trial_helpers"
 init=$(sed -n '/^CX_ROOT=/,/^wine_unix=/p' "$SRC")
 # shellcheck disable=SC2016 # Match the literal launcher loop.
 forward=$(sed -n '/^ *for name in $(env .*CX_APPLEGPTK/,/^ *done$/p' "$SRC")
