@@ -49,12 +49,13 @@ struct CrossOverTrialTests {
             supported: { _ in true }, run: run) == nil)
         #expect(calls == 0)
 
-        let active = try #require(CrossOverTrial.check(
+        let checked = try CrossOverTrial.check(
             crossOverRoot: root, defaults: preferences, runScript: { script },
             supported: { candidate in
                 #expect(CrossOverSource.same(candidate, bundle))
                 return true
-            }, run: run))
+            }, run: run)
+        let active = try #require(checked)
         #expect(active.daysRemaining == 7)
         #expect(active.source.root == root)
         #expect(active.source.bottle == "Steam Test")
@@ -73,7 +74,7 @@ struct CrossOverTrialTests {
             contentsOf: directory.appending(path: CrossOverTrial.markerName), encoding: .utf8)
         #expect(bytes == "\(source.root.path(percentEncoded: false))\nSteam Test\n")
 
-        let active = try #require(CrossOverTrial.check(
+        let checked = try CrossOverTrial.check(
             crossOverRoot: directory, defaults: preferences, runScript: { script },
             supported: { _ in
                 Issue.record("A clone must resolve its source from the marker.")
@@ -85,7 +86,8 @@ struct CrossOverTrialTests {
                     source.root.path(percentEncoded: false), source.bottle,
                 ])
                 return CommandResult(status: 0, stdout: "3\n", stderr: "")
-            }))
+            })
+        let active = try #require(checked)
         #expect(active.source == source)
         #expect(active.daysRemaining == 3)
     }
