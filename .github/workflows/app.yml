@@ -140,6 +140,9 @@ jobs:
           make -s launchercheck
           make -s seedcheck
 
+      - name: Check CrossOver trial launch validation
+        run: make -s trialcheck
+
       - name: Run the Swift tests
         run: make -s app-tests
 
