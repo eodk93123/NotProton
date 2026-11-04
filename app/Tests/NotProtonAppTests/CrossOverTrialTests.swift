@@ -23,7 +23,7 @@ struct CrossOverTrialTests {
         defer { preferences.removePersistentDomain(forName: suite) }
         let directory = try scratchDirectory("trial")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let bundle = directory.appending(path: "CrossOver.app")
+        let bundle = directory.appending(path: "CrossOver.app", directoryHint: .isDirectory)
         let root = SupportPaths.crossOverRoot(inBundle: bundle)
         var calls = 0
         let run: (String, [String]) throws -> CommandResult = { executable, arguments in
