@@ -2,6 +2,110 @@
 # notproton CrossOver compatibility tool shim
 set -e
 
+# The vendor returns zero for expired trials too; only its positive day count is usable.
+np_check_trial() (
+  [ "$#" -eq 2 ] || { echo "Usage: check-trial CROSSOVER_ROOT BOTTLE" >&2; exit 1; }
+  np_trial_source=$1
+  np_trial_bottle=$2
+  case "$np_trial_source" in /*) ;; *) echo "The trial source must be an absolute path." >&2; exit 1 ;; esac
+  case "$np_trial_source$np_trial_bottle" in
+    *'
+'*|*"$(printf '\r')"*) echo "The trial source and bottle must each fit on one line." >&2; exit 1 ;;
+  esac
+  case "$np_trial_bottle" in
+    *[![:space:]]*) ;;
+    *) echo "Select an existing CrossOver trial bottle before testing." >&2; exit 1 ;;
+  esac
+  [ -x "$np_trial_source/bin/wine" ] || {
+    echo "Open CrossOver and select an existing trial bottle before testing." >&2
+    exit 1
+  }
+  case "$np_trial_bottle" in
+    /*) [ -f "$np_trial_bottle/system.reg" ] || {
+      echo "The selected CrossOver bottle has not been initialized." >&2; exit 1;
+    } ;;
+  esac
+
+  np_trial_tmp=$(mktemp -d "${TMPDIR:-/tmp}/notproton-trial.XXXXXX") || exit 1
+  np_trial_pid=""
+  np_trial_watchdog=""
+  trap '[ -z "$np_trial_pid" ] || kill -KILL "$np_trial_pid" 2>/dev/null || true;
+        [ -z "$np_trial_watchdog" ] || kill "$np_trial_watchdog" 2>/dev/null || true;
+        rm -rf "$np_trial_tmp"' 0
+  trap 'exit 1' HUP INT TERM
+  (
+    unset WINEPREFIX WINELOADER WINESERVER WINEDLLPATH WINEDLLOVERRIDES WINEWRAPPER
+    unset CX_ROOT CX_HOME CX_BOTTLE CX_BOTTLE_PATH CX_MANAGED_BOTTLE_PATH
+    unset CX_INITIALIZED CX_WINELOADER CX_BOTTLE_LOCKED CX_ENV CX_LOG CX_DEBUGMSG
+    unset DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+    exec /usr/bin/env LC_ALL=C LANG=C "$np_trial_source/bin/wine" --bottle "$np_trial_bottle" \
+      --no-gui --no-update --no-lock --demo-status
+  ) > "$np_trial_tmp/out" 2> "$np_trial_tmp/err" &
+  np_trial_pid=$!
+  (
+    trap - 0
+    np_trial_sleep=""
+    trap '[ -z "$np_trial_sleep" ] || kill "$np_trial_sleep" 2>/dev/null || true; exit 0' HUP INT TERM
+    sleep 30 &
+    np_trial_sleep=$!
+    wait "$np_trial_sleep" || exit 0
+    kill -KILL "$np_trial_pid" 2>/dev/null || true
+  ) </dev/null >/dev/null 2>&1 &
+  np_trial_watchdog=$!
+  np_trial_status=0
+  wait "$np_trial_pid" || np_trial_status=$?
+  np_trial_pid=""
+  kill "$np_trial_watchdog" 2>/dev/null || true
+  wait "$np_trial_watchdog" 2>/dev/null || true
+  np_trial_watchdog=""
+  if [ "$np_trial_status" -ne 0 ]; then
+    echo "CrossOver could not report its trial status (failed or timed out). Open CrossOver and check the selected bottle." >&2
+    exit 1
+  fi
+  LC_ALL=C awk '
+    { sub(/\r$/, "") }
+    /^Demo version \([1-9][0-9]* days remaining\)$/ {
+      days = $0
+      sub(/^Demo version \(/, "", days)
+      sub(/ days remaining\)$/, "", days)
+      if (length(days) > 10 || days + 0 > 2147483647) invalid = 1
+      count++
+      next
+    }
+    NF { invalid = 1 }
+    END {
+      if (count == 1 && !invalid) print days
+      else exit 1
+    }
+  ' "$np_trial_tmp/out" || {
+    echo "CrossOver did not confirm an active trial. The trial may be expired, or its status was not recognized." >&2
+    exit 1
+  }
+)
+
+np_check_trial_runner() (
+  [ "$#" -eq 1 ] || exit 1
+  np_trial_record="$1/notproton-trial"
+  [ -e "$np_trial_record" ] || [ -L "$np_trial_record" ] || exit 0
+  [ ! -L "$np_trial_record" ] && [ -f "$np_trial_record" ] && [ -r "$np_trial_record" ] || {
+    echo "The CrossOver trial source record cannot be read. Set up the runner again." >&2; exit 1;
+  }
+  # Both commands only read the record; neither writes to it.
+  # shellcheck disable=SC2094
+  LC_ALL=C tr -d '\000' < "$np_trial_record" | cmp -s "$np_trial_record" - || {
+    echo "The CrossOver trial source record contains invalid bytes." >&2; exit 1;
+  }
+  {
+    IFS= read -r np_trial_source && IFS= read -r np_trial_bottle && {
+      np_trial_extra=""
+      if IFS= read -r np_trial_extra || [ -n "$np_trial_extra" ]; then false; else true; fi
+    }
+  } < "$np_trial_record" || {
+    echo "The CrossOver trial source record is invalid. Set up the runner again." >&2; exit 1;
+  }
+  np_check_trial "$np_trial_source" "$np_trial_bottle"
+)
+
 verb="$1"
 shift || true
 
@@ -11,6 +115,14 @@ shift || true
 launch_args="$*"
 
 case "$verb" in
+  check-trial)
+    np_check_trial "$@"
+    exit $?
+    ;;
+  check-trial-runner)
+    np_check_trial_runner "$@"
+    exit $?
+    ;;
   getcompatpath)
     printf '%s\n' "$STEAM_COMPAT_DATA_PATH"
     exit 0
@@ -968,6 +1080,14 @@ np_variant_stage_prefix() {
 }
 
 CX_ROOT="$np_support/runners/crossover-$np_build/CrossOver"
+if ! np_trial_days=$(np_check_trial_runner "$CX_ROOT"); then
+  echo "NotProton: CrossOver trial validation failed; launch stopped." >&2
+  echo "CrossOver trial validation failed; launch stopped." >> "$log" 2>/dev/null || true
+  exit 1
+fi
+if [ -n "$np_trial_days" ]; then
+  echo "CrossOver trial: $np_trial_days days remaining." >> "$log" 2>/dev/null || true
+fi
 np_variant=${NOTPROTON_RUNNER_VARIANT:-}
 np_variant_key=""
 np_variant_layout=""
