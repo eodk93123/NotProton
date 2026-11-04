@@ -1,30 +1,30 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    " NotProton can be deployed, but the CrossOver compatibility tool cannot be installed without a valid license." : {
+    " NotProton can be deployed, but the CrossOver compatibility tool cannot be installed without a valid license or a verified active trial." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " NotProton kann bereitgestellt werden, aber das CrossOver-Kompatibilitätstool lässt sich ohne gültige Lizenz nicht installieren."
+            "value" : " NotProton kann bereitgestellt werden, aber das CrossOver-Kompatibilitätstool lässt sich ohne gültige Lizenz oder bestätigten aktiven Testzeitraum nicht installieren."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " NotProton peut être déployé, mais l'outil de compatibilité CrossOver ne peut pas être installé sans licence valide."
+            "value" : " NotProton peut être déployé, mais l'outil de compatibilité CrossOver ne peut pas être installé sans licence valide ou période d'essai active vérifiée."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " NotProton può essere installato, ma lo strumento di compatibilità di CrossOver non può essere installato senza una licenza valida."
+            "value" : " NotProton può essere installato, ma lo strumento di compatibilità di CrossOver richiede una licenza valida o un periodo di prova attivo verificato."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " 可以部署 NotProton，但没有有效许可证时无法安装 CrossOver 兼容工具。"
+            "value" : " 可以部署 NotProton，但 CrossOver 兼容工具需要有效许可证或已验证的有效试用期才能安装。"
           }
         }
       }
@@ -1412,30 +1412,30 @@
         }
       }
     },
-    ", not set up or activated" : {
+    ", not set up or verified" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : ", nicht eingerichtet oder aktiviert"
+            "value" : ", nicht eingerichtet oder verifiziert"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : ", non configuré ou non activé"
+            "value" : ", non configuré ou non vérifié"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : ", non configurata né attivata"
+            "value" : ", non configurata né verificata"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "，尚未设置或激活"
+            "value" : "，尚未设置或验证"
           }
         }
       }
@@ -4019,6 +4019,34 @@
         }
       }
     },
+    "CrossOver could not verify an active trial. Open CrossOver and check the selected bottle, or activate CrossOver, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver konnte keinen aktiven Testzeitraum bestätigen. Öffne CrossOver und überprüfe die ausgewählte Bottle oder aktiviere CrossOver. Versuche es anschließend erneut."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver n'a pas pu vérifier qu'une période d'essai est active. Ouvrez CrossOver et vérifiez la bouteille sélectionnée, ou activez CrossOver, puis réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver non ha potuto verificare un periodo di prova attivo. Apri CrossOver e controlla la bottiglia selezionata, oppure attiva CrossOver, quindi riprova."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver 无法验证有效试用期。请打开 CrossOver 并检查所选容器，或激活 CrossOver，然后重试。"
+          }
+        }
+      }
+    },
     "CrossOver does not appear to be activated." : {
       "localizations" : {
         "de" : {
@@ -4099,6 +4127,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不会移除 CrossOver 原应用。"
+          }
+        }
+      }
+    },
+    "CrossOver trial days remaining: %lld." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbleibende Tage der CrossOver-Testversion: %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jours d'essai CrossOver restants : %lld."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giorni rimanenti della prova di CrossOver: %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver 试用期剩余天数：%lld。"
           }
         }
       }
@@ -7042,34 +7098,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开%@"
-          }
-        }
-      }
-    },
-    "Open CrossOver to activate it." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Öffne CrossOver, um es zu aktivieren."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrez CrossOver pour l'activer."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apri CrossOver per attivarlo."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请打开 CrossOver 完成激活。"
           }
         }
       }
@@ -11193,34 +11221,6 @@
         }
       }
     },
-    "The trial version is not supported." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Testversion wird nicht unterstützt."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La version d'essai n'est pas prise en charge."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La versione di prova non è supportata."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "The trial version is not supported."
-          }
-        }
-      }
-    },
     "There is no ntdll to patch at %@." : {
       "localizations" : {
         "de" : {
@@ -11641,6 +11641,34 @@
         }
       }
     },
+    "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Testen der Testversion sind eine vorhandene CrossOver-Bottle und ein von CrossOver bestätigter aktiver Testzeitraum erforderlich."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le test de la version d'essai nécessite une bouteille CrossOver existante et un statut d'essai actif confirmé par CrossOver."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per testare la versione di prova servono una bottiglia CrossOver esistente e uno stato di prova attivo confermato da CrossOver."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Trial testing requires an existing CrossOver bottle and a positive trial status from CrossOver."
+          }
+        }
+      }
+    },
     "Unknown" : {
       "localizations" : {
         "de" : {
@@ -11917,6 +11945,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "验证 CrossOver 许可证"
+          }
+        }
+      }
+    },
+    "Verify CrossOver trial" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver-Testzeitraum prüfen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier la période d'essai de CrossOver"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica il periodo di prova di CrossOver"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证 CrossOver 试用期"
           }
         }
       }
