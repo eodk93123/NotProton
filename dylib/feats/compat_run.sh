@@ -237,6 +237,60 @@ resolve_icon() {
   return $icon_status
 }
 
+lsregister="/System/Library/Frameworks/CoreServices.framework/Versions/A"
+lsregister="$lsregister/Frameworks/LaunchServices.framework/Support/lsregister"
+plistbuddy=/usr/libexec/PlistBuddy
+lsappinfo=/usr/bin/lsappinfo
+games_arg="  <key>LSApplicationCategoryType</key><string>public.app-category.games</string>"
+# display name, bundle ID, executable, extra keys
+bundle_plist() {
+  cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>$game_name_xml</string>
+  <key>CFBundleDisplayName</key><string>$1</string>
+  <key>CFBundleIdentifier</key><string>$2</string>
+  <key>CFBundleExecutable</key><string>$3</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSMicrophoneUsageDescription</key><string>This game would like to access your microphone.</string>
+  <key>NSCameraUsageDescription</key><string>This game would like to access your camera.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>This game would like to access devices on your local network.</string>
+$4
+$icon_arg
+</dict>
+</plist>
+PLIST
+}
+np_game_names() {
+  # shellcheck disable=SC1003 # the pair deletes a literal backslash, not a quote
+  bundle_name=$(printf '%s' "$game_name" | tr -d '/:"`$\\')
+  bundle_name=${bundle_name#"${bundle_name%%[!.]*}"}
+  [ -n "$bundle_name" ] || bundle_name="Steam Game"
+  game_name_xml=$(printf '%s' "$game_name" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+}
+np_game_running() {
+  [ -n "$("$lsappinfo" find bundleid="com.notproton.launcher.$1" 2>/dev/null)" ]
+}
+np_game_mode_by_key() {
+  np_macos=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+  [ "${np_macos:-0}" -ge 26 ] 2>/dev/null
+}
+np_handoff() {
+  # shellcheck disable=SC2016 # $1 is for the launcher
+  printf 'case "$1" in\n  ""|-psn_*) exec /usr/bin/open "%s" ;;\nesac\n' "$1"
+}
+np_tile() {
+  mkdir -p "$1/MacOS" &&
+    bundle_plist "$game_name_xml" "com.notproton.game.$2" launcher "$games_arg" > "$1/Info.plist" &&
+    printf '#!/bin/sh\nexec /usr/bin/open "%s"\n' "$3" > "$1/MacOS/launcher" &&
+    chmod +x "$1/MacOS/launcher"
+}
+
 case "$verb" in
   shortcut-icons)
     app_id="$1"
@@ -250,6 +304,99 @@ case "$verb" in
     target=""
     read_app_meta
     resolve_icon && "$iconmaker" --shortcuts "$app_id" "$icon_cache" "$2/steam.icns" >> "$log" 2>&1 || true
+    exit 0
+    ;;
+  game-tile)
+    app_id="$1"
+    case "$app_id" in ''|0|*[!0-9]*) exit 1 ;; esac
+    case "$2" in ''|0|*[!0-9]*) exit 1 ;; esac
+    case "$3" in /*) ;; *) exit 1 ;; esac
+    loader_root="$3"
+    [ -d "$loader_root" ] || exit 1
+    exec 7>> "$loader_root/.lock"
+    /usr/bin/lockf -s -t 0 7 || exit 0
+    ! np_game_running "$app_id" || exit 0
+    steam_url="steam://rungameid/$2"
+    runner_app=""
+    for b in "$loader_root"/runner/lib/wine/*-unix/wine.app; do
+      if [ "$("$plistbuddy" -c 'Print :CFBundleIdentifier' "$b/Contents/Info.plist" 2>/dev/null)" = "com.notproton.launcher.$app_id" ]; then
+        runner_app=$b
+      fi
+    done
+    if [ -n "$runner_app" ]; then
+      info="$runner_app/Contents/Info.plist"
+      if np_game_mode_by_key; then
+        changed=""
+        if "$plistbuddy" -c 'Print :LSApplicationCategoryType' "$info" > /dev/null 2>&1; then
+          "$plistbuddy" -c 'Delete :LSApplicationCategoryType' "$info" && changed=1
+        fi
+        if [ "$("$plistbuddy" -c 'Print :LSSupportsGameMode' "$info" 2>/dev/null)" != true ]; then
+          { "$plistbuddy" -c 'Add :LSSupportsGameMode bool true' "$info" 2> /dev/null ||
+            "$plistbuddy" -c 'Set :LSSupportsGameMode true' "$info"; } && changed=1
+        fi
+        [ -z "$changed" ] || "$lsregister" -f "$runner_app" || true
+      fi
+      game_name=$("$plistbuddy" -c 'Print :CFBundleName' "$info" 2> /dev/null) || game_name=""
+      np_game_names
+      tile="$loader_root/$bundle_name.app"
+      if [ "$("$plistbuddy" -c 'Print :CFBundleIdentifier' "$tile/Contents/Info.plist" 2>/dev/null)" != "com.notproton.game.$app_id" ] ||
+         [ "$("$plistbuddy" -c 'Print :LSApplicationCategoryType' "$tile/Contents/Info.plist" 2>/dev/null)" != public.app-category.games ] ||
+         [ ! -x "$tile/Contents/MacOS/launcher" ]; then
+        stage=$(mktemp -d "$loader_root/.build.XXXXXX")
+        mkdir -p "$stage/Tile.app/Contents/Resources"
+        icon_arg=""
+        if cp "$runner_app/Contents/Resources/game.icns" "$stage/Tile.app/Contents/Resources/game.icns" 2> /dev/null; then
+          icon_arg="  <key>CFBundleIconFile</key><string>game</string>"
+        fi
+        if np_tile "$stage/Tile.app/Contents" "$app_id" "$steam_url" && rm -rf "$tile" && mv "$stage/Tile.app" "$tile"; then
+          "$lsregister" -f "$tile" || true
+        fi
+        rm -rf "$stage"
+      fi
+      for b in "$loader_root"/*.app "$loader_root"/.[!.]*.app; do
+        if [ "$b" != "$tile" ] && { [ -e "$b" ] || [ -L "$b" ]; }; then rm -rf "$b"; fi
+      done
+    else
+      for b in "$loader_root"/*.app; do
+        info="$b/Contents/Info.plist"
+        script="$b/Contents/MacOS/launcher"
+        if [ "$("$plistbuddy" -c 'Print :CFBundleIdentifier' "$info" 2>/dev/null)" != "com.notproton.launcher.$app_id" ] ||
+           [ "$("$plistbuddy" -c 'Print :CFBundleExecutable' "$info" 2>/dev/null)" != launcher ]; then
+          continue
+        fi
+        changed=""
+        if [ "$(head -n 1 "$script" 2> /dev/null)" = "#!/bin/sh" ] && ! grep -q 'steam://rungameid/' "$script"; then
+          { echo '#!/bin/sh'; np_handoff "$steam_url"; sed 1d "$script"; } > "$script.new" &&
+            chmod 755 "$script.new" && mv -f "$script.new" "$script" && changed=1
+        fi
+        if ! "$plistbuddy" -c 'Print :LSApplicationCategoryType' "$info" > /dev/null 2>&1; then
+          "$plistbuddy" -c 'Add :LSApplicationCategoryType string public.app-category.games' "$info" && changed=1
+        fi
+        [ -z "$changed" ] || "$lsregister" -f "$b" || true
+      done
+    fi
+    exit 0
+    ;;
+  game-untile)
+    app_id="$1"
+    case "$app_id" in ''|0|*[!0-9]*) exit 1 ;; esac
+    case "$2" in /*) ;; *) exit 1 ;; esac
+    loader_root="$2"
+    [ -d "$loader_root" ] || exit 1
+    np_game_mode_by_key || exit 0
+    exec 7>> "$loader_root/.lock"
+    /usr/bin/lockf -s -t 0 7 || exit 0
+    ! np_game_running "$app_id" || exit 0
+    for b in "$loader_root"/runner/lib/wine/*-unix/wine.app "$loader_root"/*.app "$loader_root"/.[!.]*.app; do
+      info="$b/Contents/Info.plist"
+      case "$("$plistbuddy" -c 'Print :CFBundleIdentifier' "$info" 2>/dev/null)" in
+        "com.notproton.launcher.$app_id"|"com.notproton.game.$app_id") ;;
+        *) continue ;;
+      esac
+      if "$plistbuddy" -c 'Print :LSApplicationCategoryType' "$info" > /dev/null 2>&1; then
+        "$plistbuddy" -c 'Delete :LSApplicationCategoryType' "$info" && { "$lsregister" -f "$b" || true; }
+      fi
+    done
     exit 0
     ;;
 esac
@@ -2780,11 +2927,7 @@ if [ -z "$game_name" ] && [ -f "$manifest" ]; then
 fi
 [ -z "$game_name" ] && game_name=$(basename "$STEAM_COMPAT_INSTALL_PATH")
 [ -z "$game_name" ] && game_name="Steam Game"
-# shellcheck disable=SC1003 # the pair deletes a literal backslash, not a quote
-bundle_name=$(printf '%s' "$game_name" | tr -d '/:"`$\\')
-bundle_name=${bundle_name#"${bundle_name%%[!.]*}"}
-[ -n "$bundle_name" ] || bundle_name="Steam Game"
-game_name_xml=$(printf '%s' "$game_name" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+np_game_names
 loader_root="$HOME/Library/Application Support/notproton/launchers/$app_id"
 mkdir -p "$loader_root"
 loader_app="$loader_root/$bundle_name.app"
@@ -2804,14 +2947,12 @@ fi
 [ -n "$icon_arg" ] || echo "no icon resolved, launching without one" >> "$log" 2>&1 || true
 
 game_runner=""
-bundle_exec=launcher
 display_name_xml=$game_name_xml
 localized_arg=""
 uielement_arg=""
 if [ -z "$user_dllpath" ]; then
   game_runner="$loader_root/runner"
   game_app="$game_runner/lib/wine/${wine_unix##*/}/wine.app"
-  bundle_exec=wine
   # Begone, unwanted Wine processes! Stay out of my dock!
   uielement_arg="  <key>LSUIElement</key><true/>"
   # Trickery so that the running application (as shown in the dock) is shown with the game's name
@@ -2829,29 +2970,22 @@ if [ -n "$localized_arg" ]; then
     printf '"CFBundleDisplayName" = "%s";\n' "$game_name_strings" > "$loader_res/$lproj.lproj/InfoPlist.strings"
   done
 fi
-cat > "$loader_contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>$game_name_xml</string>
-  <key>CFBundleDisplayName</key><string>$display_name_xml</string>
-  <key>CFBundleIdentifier</key><string>com.notproton.launcher.$app_id</string>
-  <key>CFBundleExecutable</key><string>$bundle_exec</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSPrincipalClass</key><string>NSApplication</string>
-  <key>NSMicrophoneUsageDescription</key><string>This game would like to access your microphone.</string>
-  <key>NSCameraUsageDescription</key><string>This game would like to access your camera.</string>
-  <key>NSLocalNetworkUsageDescription</key><string>This game would like to access devices on your local network.</string>
+steam_url="steam://rungameid/$app_id"
+if shortcut_game_id "$SteamGameId"; then steam_url="steam://rungameid/$SteamGameId"; fi
+if [ -n "$game_runner" ]; then
+  runner_games_arg=$games_arg
+  if np_game_mode_by_key; then runner_games_arg="  <key>LSSupportsGameMode</key><true/>"; fi
+  runner_plist="$loader_work/runner.plist"
+  bundle_plist "$display_name_xml" "com.notproton.launcher.$app_id" wine \
+    "$runner_games_arg
 $uielement_arg
-$localized_arg
-$icon_arg
-</dict>
-</plist>
-PLIST
+$localized_arg" > "$runner_plist"
+  np_tile "$loader_contents" "$app_id" "$steam_url"
+else
+  bundle_plist "$display_name_xml" "com.notproton.launcher.$app_id" launcher \
+    "$games_arg
+$uielement_arg" > "$loader_contents/Info.plist"
+fi
 
 # Invokes macOS Game Mode
 if [ -z "$game_runner" ]; then
@@ -2877,6 +3011,7 @@ if [ -z "$game_runner" ]; then
 
   cat > "$loader_macos/launcher" <<LAUNCHER
 #!/bin/sh
+$(np_handoff "$steam_url")
 export WINELOADER="$WINELOADER"
 wine_log="$loader_root/notproton-wine.log"
 exec > "\$wine_log" 2>&1
@@ -2981,7 +3116,6 @@ runner_stamp() {
 install_game_runner() (
   exec 7>> "$loader_root/.lock"
   /usr/bin/lockf -s -t 30 7 || exit 1
-  trap 'rm -rf "$loader_work"' EXIT
   stamp=$(runner_stamp) || exit 1
   if [ "$(cat "$game_runner/.stamp" 2>/dev/null)" != "$stamp" ]; then
     clone="$loader_work/runner"
@@ -3013,23 +3147,26 @@ install_game_runner() (
     echo "cloned $CX_ROOT for this game" >> "$log" 2>&1 || true
   fi
   contents="$game_app/Contents"
-  if cmp -s "$loader_contents/Info.plist" "$contents/Info.plist" &&
+  if cmp -s "$runner_plist" "$contents/Info.plist" &&
      [ "$(bundle_listing "$loader_res")" = "$(bundle_listing "$contents/Resources")" ]; then
     echo "game's wine.app already up to date" >> "$log" 2>&1 || true
   else
     rm -rf "$contents/Resources" || exit 1
     cp -R "$loader_res" "$contents/Resources" || exit 1
-    cp "$loader_contents/Info.plist" "$contents/Info.plist" || exit 1
+    cp "$runner_plist" "$contents/Info.plist" || exit 1
     echo "game's wine.app updated" >> "$log" 2>&1 || true
   fi
   for b in "$loader_root"/*.app "$loader_root"/.[!.]*.app; do
-    if [ -e "$b" ] || [ -L "$b" ]; then rm -rf "$b" || true; fi
+    if [ "$b" != "$loader_app" ] && { [ -e "$b" ] || [ -L "$b" ]; }; then rm -rf "$b" || true; fi
   done
 )
 if [ -z "$game_runner" ]; then
   install_bundle
   rm -rf "$loader_root/runner" 2>> "$log" || true
-elif ! install_game_runner; then
+elif install_game_runner; then
+  install_bundle || { echo "game tile not installed" >> "$log" 2>&1 || true; rm -rf "$loader_work"; }
+else
+  rm -rf "$loader_work"
   show_alert "Couldn't start the game" "NotProton ran into an error. Please check the notproton-run.log in this game's prefix for details."
   exit 1
 fi
@@ -3264,20 +3401,15 @@ for name in $np_env_passed; do
   np_env_names="$np_env_names $name"
   echo "=== NOTPROTON_ENV_$name sets $name ===" >> "$log" 2>&1 || true
 done
-lsregister="/System/Library/Frameworks/CoreServices.framework/Versions/A"
-lsregister="$lsregister/Frameworks/LaunchServices.framework/Support/lsregister"
-if [ -n "$game_runner" ]; then
-  launched_app="$game_app"
-  registered="$game_runner/.launchservices-registered"
-else
-  launched_app="$loader_app"
+for launched_app in "$loader_app" ${game_runner:+"$game_app"}; do
   registered="$loader_root/.launchservices-registered"
-fi
-if [ ! -f "$registered" ] || [ "$launched_app/Contents/Info.plist" -nt "$registered" ]; then
-  if [ -x "$lsregister" ] && "$lsregister" -f "$launched_app" >> "$log" 2>&1; then
-    touch "$registered" 2>/dev/null || true
+  [ "$launched_app" = "$loader_app" ] || registered="$game_runner/.launchservices-registered"
+  if [ ! -f "$registered" ] || [ "$launched_app/Contents/Info.plist" -nt "$registered" ]; then
+    if [ -x "$lsregister" ] && "$lsregister" -f "$launched_app" >> "$log" 2>&1; then
+      touch "$registered" 2>/dev/null || true
+    fi
   fi
-fi
+done
 if [ -n "$game_runner" ]; then
   shim="$HOME/Library/Application Support/notproton/overlay-shim.dylib"
   inserts="$STEAM_DYLD_INSERT_LIBRARIES"
